@@ -244,8 +244,8 @@ static void sun_uart_set_termios(struct uart_port *port, struct ktermios *termio
 		if (termios->c_cflag & CMSPAR)
 			cval |= UART_LCR_SPAR;
 		#endif
-	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/4);
-	printk(KERN_INFO "\nserialxr_set_termios: Port Index:%d c_ispeed:%d c_ospeed:%d baud=%d",port_index,termios->c_ispeed,termios->c_ospeed,baud);
+	//baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/4);
+	printk(KERN_INFO "\nserialxr_set_termios: Port Index:%d c_ispeed:%d c_ospeed:%d baud=%d,%x\r\n",port_index,termios->c_ispeed,termios->c_ospeed,baud,port->uartclk);
      /*
 	 * Ok, we're now changing the port state.  Do it with
 	 * interrupts disabled.
@@ -253,7 +253,6 @@ static void sun_uart_set_termios(struct uart_port *port, struct ktermios *termio
 
 	 #if 0
 	spin_lock_irqsave(&port->lock, flags);
-
 	/*
 	 * Update the per-port timeout.
 	 */
@@ -264,7 +263,6 @@ static void sun_uart_set_termios(struct uart_port *port, struct ktermios *termio
 		port->read_status_mask |= UART_LSR_FE | UART_LSR_PE;
 	if (termios->c_iflag & (BRKINT | PARMRK))
 		port->read_status_mask |= UART_LSR_BI;
-
 	/*
 	 * Characteres to ignore
 	 */
@@ -365,7 +363,7 @@ static struct uart_ops sunzhguy_uart_ops = {
 static struct uart_port sunzhguy_port = {
     .ops = &sunzhguy_uart_ops,
     .type = PORT_8250,
-    .fifosize = 1,
+    .fifosize = 256,
     .flags = UPF_SKIP_TEST | UPF_BOOT_AUTOCONF,
 };
 static void tx_work(struct work_struct *work)
@@ -387,7 +385,7 @@ static void tx_work(struct work_struct *work)
 		}
 			 
 		count = port->fifosize / 2;
-		// printk("sclu %s, count = %d\n", __func__, count);
+	    printk("sclu %s, count = %d,tail :%d\n", __func__, count,xmit->tail);
 		//发送数据
 		//	serial_out(&sw_uport->port, xmit->buf[xmit->tail], SW_UART_THR);
 		printk("get data:\n");
@@ -396,14 +394,16 @@ static void tx_work(struct work_struct *work)
 			xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 			port->icount.tx++;
 			if (uart_circ_empty(xmit)) {
+				printk("<empty>\n");
 				break;
 			  }
 			} while (--count > 0);
-				printk("\n");
+				printk("<>\n");
 			if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS) {
 				   // spin_unlock(&port->lock);
 				uart_write_wakeup(port);
 				   // spin_lock(&port->lock);
+				   printk("<wakeup>\n");
 			}
 		   if (uart_circ_empty(xmit))
 			 sun_uart_stop_tx(port);
