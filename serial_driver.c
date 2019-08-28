@@ -42,6 +42,12 @@ struct workqueue_struct *workqueue;
 static DEFINE_MUTEX(serial_mutex);
 
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 8, 0)
+#define __devinitdata
+#define __devinit
+#define __devexit
+#define __devexit_p
+#endif
 
 
 
@@ -426,7 +432,7 @@ spin_unlock_irqrestore(&port->lock, flags);
 }
 
 
-
+#if 0
 static int __init sunzhguy_uart_init(void)
 {
     int ret;
@@ -476,12 +482,109 @@ static void __exit sunzhguy_uart_exit(void)
    //uart_remove_one_port(&sw_uart_driver, &tiny_port);
     uart_unregister_driver(&sunzhguy_uart_driver);
 }
+#endif
+
+static int __devinit init_one_sunpciserialcard(struct pci_dev *dev, const struct pci_device_id *ent)
+{
+
+	int ret;
+	unsigned long flags;
+    printk("%d, %s\n", __LINE__, __func__);
+    workqueue = create_singlethread_workqueue("sunzhguySerial_work");
+    INIT_WORK(&q_work, tx_work);
+	#if 0
+    ret = uart_register_driver(&sunzhguy_uart_driver);
+    if (unlikely(ret)) {
+        printk(KERN_WARNING"serial driver initializied err\n");
+        return ret;
+    }
+	#endif
+	mutex_lock(&serial_mutex);
+	printk(KERN_WARNING"-------lock1:%x,%p\n",sunzhguy_port.lock,&sunzhguy_port.lock);
+
+	printk("ret====<<>>======%d,%d---->\r\n",ret,sunzhguy_uart_driver.nr,sunzhguy_port.line);
+    ret= uart_add_one_port(&sunzhguy_uart_driver, &sunzhguy_port);
+	spin_lock_init(&sunzhguy_port.lock);
+	spin_lock_irqsave(&sunzhguy_port.lock, flags);
+	
+	printk(KERN_WARNING"-------lock2:%x,%d\n",sunzhguy_port.lock,flags);
+	spin_unlock_irqrestore(&sunzhguy_port.lock, flags);
+	printk(KERN_WARNING"-------lock3:%x,%d\n",sunzhguy_port.lock,flags);
+	mutex_unlock(&serial_mutex);
+	return ret;
+    
+}
+
+static void __devexit remove_one_sunpciserialcard(struct pci_dev *dev)
+{
+	struct serial_private *priv = pci_get_drvdata(dev);
+#if 0
+	pci_set_drvdata(dev, NULL);
+
+	pciserial_remove_ports(priv);
+#endif
+	uart_unregister_driver(&sunzhguy_uart_driver);
+	pci_disable_device(dev);
+}
+
+
+
+static struct pci_device_id sunserial_pci_tbl[] = {
+	{	0x8086, 0x7110,
+		PCI_ANY_ID, PCI_ANY_ID,
+		0, 0, 0 },
+	{ 0, }
+};
 
 
 
 
-module_init(sunzhguy_uart_init);
-module_exit(sunzhguy_uart_exit);
+
+static struct pci_driver sunserial_pci_driver = {
+	.name		= "sunzhguyserial",
+	.probe		= init_one_sunpciserialcard,
+	.remove		= __devexit_p(remove_one_sunpciserialcard),
+	.id_table	= sunserial_pci_tbl,
+};
+
+
+static int __init serialsun_init(void)
+{
+	int ret;
+
+	printk(KERN_INFO "PCIE  ----------------Serial  Driver...................\r\n");
+
+	ret = uart_register_driver(&sunzhguy_uart_driver);
+	if (ret)
+		return ret;
+
+	ret = pci_register_driver(&sunserial_pci_driver);
+
+	if (ret < 0)
+		uart_unregister_driver(&sunzhguy_uart_driver);
+
+	return ret;	
+}
+
+static void __exit serialsun_exit(void)
+{
+	pci_unregister_driver(&sunserial_pci_driver);
+	uart_unregister_driver(&sunzhguy_uart_driver);
+}
+
+//module_init(serialxr_init);
+//module_exit(serialxr_exit);
+
+///MODULE_LICENSE("GPL");
+//MODULE_DESCRIPTION("myPCIE init");
+
+
+//module_init(sunzhguy_uart_init);
+//module_exit(sunzhguy_uart_exit);
+
+module_init(serialsun_init);
+module_exit(serialsun_exit);
+
  
 MODULE_AUTHOR("ztzh@sunzhg20@qq.com>");
 MODULE_DESCRIPTION("Driver for Sunzhguy serial device");

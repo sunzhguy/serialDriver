@@ -1,1 +1,0 @@
-cmd_/mnt/hgfs/vmSysShare/Driver_App/myserialdriver/serial_driver.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /mnt/hgfs/vmSysShare/Driver_App/myserialdriver/serial_driver.ko /mnt/hgfs/vmSysShare/Driver_App/myserialdriver/serial_driver.o /mnt/hgfs/vmSysShare/Driver_App/myserialdriver/serial_driver.mod.o

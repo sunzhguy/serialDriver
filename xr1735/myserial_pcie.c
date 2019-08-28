@@ -1802,7 +1802,7 @@ static struct uart_xr_port serialxr_ports[NR_PORTS];
 static struct uart_driver sun_uart_driver = {
 	.owner			= THIS_MODULE,
 	.driver_name		= "sunzhguyserial",
-	.dev_name		= "ttyZTZH",
+	.dev_name		= "ttyZT",
 	.major			= XR_MAJOR,
 	.minor			= XR_MINOR,
 	.nr			    = NR_PORTS,
@@ -2111,7 +2111,9 @@ void pciserial_remove_ports(struct serial_private *priv)
 
 static void __devexit remove_one_xrpciserialcard(struct pci_dev *dev)
 {
-	struct serial_private *priv = pci_get_drvdata(dev);
+	//struct serial_private *priv = pci_get_drvdata(dev);
+
+	 printk("%d, %s\n", __LINE__, __func__);
 #if 0
 	pci_set_drvdata(dev, NULL);
 
@@ -2119,6 +2121,10 @@ static void __devexit remove_one_xrpciserialcard(struct pci_dev *dev)
 #endif
 	pci_disable_device(dev);
 }
+
+
+
+
 
 
 static struct pci_device_id sunserial_pci_tbl[] = {
