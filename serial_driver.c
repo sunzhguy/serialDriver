@@ -29,7 +29,7 @@
 #include "linux/version.h"
 #include <linux/platform_device.h>
 
-#define SW_UART_NR	1
+#define SW_UART_NR	4
 
 #define is_real_interrupt(irq)	((irq) != 0)
 
@@ -368,24 +368,36 @@ static struct uart_port sunzhguy_port = {
 };
 static void tx_work(struct work_struct *work)
 {
+	unsigned long flags;
+
 #if 1
 		struct uart_port *port = &sunzhguy_port;
 		struct circ_buf *xmit = &port->state->xmit;
 		int count;	 
 		 printk("%d, %s\n", __LINE__, __func__);
+		 spin_lock_irqsave(&port->lock, flags);
+		 
 		if (port->x_char) {
 			printk("x_char %2x", port->x_char);
 			port->icount.tx++;
 			port->x_char = 0;
-			return;
+			goto return_break;
 		}
 			 
-		if (uart_circ_empty(xmit) || uart_tx_stopped(port)) {
-		  return;
+		if (uart_circ_empty(xmit))
+		{
+          //serialxr_stop_tx(port);
+		  goto return_break;
+		}
+		if(uart_tx_stopped(port)) {
+		  goto return_break;
 		}
 			 
 		count = port->fifosize / 2;
 	    printk("sclu %s, count = %d,tail :%d\n", __func__, count,xmit->tail);
+
+		if (uart_circ_chars_pending(xmit) < count)
+		count = uart_circ_chars_pending(xmit);
 		//发送数据
 		//	serial_out(&sw_uport->port, xmit->buf[xmit->tail], SW_UART_THR);
 		printk("get data:\n");
@@ -395,19 +407,21 @@ static void tx_work(struct work_struct *work)
 			port->icount.tx++;
 			if (uart_circ_empty(xmit)) {
 				printk("<empty>\n");
-				break;
+				goto return_break;
 			  }
 			} while (--count > 0);
+
 				printk("<>\n");
 			if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS) {
-				   // spin_unlock(&port->lock);
-				uart_write_wakeup(port);
-				   // spin_lock(&port->lock);
-				   printk("<wakeup>\n");
+			  uart_write_wakeup(port);
+			  printk("<wakeup>\n");
 			}
 		   if (uart_circ_empty(xmit))
 			 sun_uart_stop_tx(port);
 #endif
+return_break:
+spin_unlock_irqrestore(&port->lock, flags);
+
 			 
 }
 
@@ -416,17 +430,26 @@ static void tx_work(struct work_struct *work)
 static int __init sunzhguy_uart_init(void)
 {
     int ret;
+	unsigned long flags;
     printk("%d, %s\n", __LINE__, __func__);
     workqueue = create_singlethread_workqueue("sunzhguySerial_work");
     INIT_WORK(&q_work, tx_work);
     ret = uart_register_driver(&sunzhguy_uart_driver);
     if (unlikely(ret)) {
-        printk("serial driver initializied err\n");
+        printk(KERN_WARNING"serial driver initializied err\n");
         return ret;
     }
 	mutex_lock(&serial_mutex);
-	spin_lock_init(&sunzhguy_port.lock);
+	printk(KERN_WARNING"-------lock1:%x,%p\n",sunzhguy_port.lock,&sunzhguy_port.lock);
+
+	printk("ret====<<>>======%d,%d---->\r\n",ret,sunzhguy_uart_driver.nr,sunzhguy_port.line);
     ret= uart_add_one_port(&sunzhguy_uart_driver, &sunzhguy_port);
+	spin_lock_init(&sunzhguy_port.lock);
+	spin_lock_irqsave(&sunzhguy_port.lock, flags);
+	
+	printk(KERN_WARNING"-------lock2:%x,%d\n",sunzhguy_port.lock,flags);
+	spin_unlock_irqrestore(&sunzhguy_port.lock, flags);
+	printk(KERN_WARNING"-------lock3:%x,%d\n",sunzhguy_port.lock,flags);
 	mutex_unlock(&serial_mutex);
 	return ret;
 }
@@ -453,11 +476,14 @@ static void __exit sunzhguy_uart_exit(void)
    //uart_remove_one_port(&sw_uart_driver, &tiny_port);
     uart_unregister_driver(&sunzhguy_uart_driver);
 }
- 
+
+
+
+
 module_init(sunzhguy_uart_init);
 module_exit(sunzhguy_uart_exit);
  
-MODULE_AUTHOR("Sunzhguy@sunzhg20@qq.com>");
+MODULE_AUTHOR("ztzh@sunzhg20@qq.com>");
 MODULE_DESCRIPTION("Driver for Sunzhguy serial device");
 MODULE_LICENSE("GPL");
 
